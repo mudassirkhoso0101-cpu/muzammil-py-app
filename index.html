@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Virtual Cricket Strategy Builder</title>
+  <style>
+    :root{
+      --bg:#0b1220; --panel:#111a2b; --muted:#94a3b8; --text:#e5e7eb; --accent:#22c55e; --accent-2:#38bdf8;
+      --warn:#f59e0b; --danger:#ef4444;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; background:linear-gradient(145deg,#0b1220,#0a0f1a 60%); color:var(--text);
+      font:14px/1.4 system-ui,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial;
+    }
+    header{
+      display:flex; gap:12px; align-items:center; justify-content:space-between; padding:14px 18px; border-bottom:1px solid #1f2a44;
+      position:sticky; top:0; backdrop-filter:saturate(120%) blur(6px); background:rgba(11,18,32,.85); z-index:10;
+    }
+    h1{font-size:18px; margin:0; letter-spacing:.2px}
+    .pill{display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border:1px solid #22314f; border-radius:999px; color:var(--muted)}
+    .wrapper{display:grid; grid-template-columns: 1.1fr .9fr; gap:14px; padding:14px; max-width:1400px; margin:0 auto}
+    .card{background:var(--panel); border:1px solid #1f2a44; border-radius:18px; box-shadow:0 6px 30px rgba(0,0,0,.35)}
+    .card h2{margin:0 0 10px 0; font-size:16px}
+    .card .head{display:flex; align-items:center; justify-content:space-between; padding:12px 14px; border-bottom:1px dashed #203154}
+    .card .body{padding:12px 14px}
+    .row{display:flex; gap:10px; align-items:center}
+    button, select, input[type="number"], input[type="text"], textarea{
+      background:#0f1729; border:1px solid #223154; color:var(--text); border-radius:10px; padding:8px 10px; outline:none;
+    }
+    button{cursor:pointer; transition:.2s transform, .2s opacity}
+    button:hover{transform:translateY(-1px)}
+    .btn{background:linear-gradient(135deg,#1d283a,#121a2a); border:1px solid #253456}
+    .btn.primary{background:linear-gradient(135deg,#1e3a2f,#112819); border-color:#1d4730;}
+    .btn.accent{background:linear-gradient(135deg,#0f2a36,#0b1d28); border-color:#1d3d4b}
+    .btn.warn{background:linear-gradient(135deg,#2b210b,#1a1407); border-color:#5b3c09}
+    .stack{display:flex; flex-direction:column; gap:10px}
+    .grid{display:grid; gap:10px}
+    .grid.two{grid-template-columns:1fr 1fr}
+    .grid.three{grid-template-columns:1fr 1fr 1fr}
+
+    /* Field */
+    .field-wrap{position:relative; aspect-ratio:1 / 1; width:100%; max-width:720px; margin:0 auto}
+    svg.field{width:100%; height:100%; display:block; border-radius:18px}
+    .player{position:absolute; width:26px; height:26px; border-radius:50%; border:2px solid rgba(255,255,255,.7); background:radial-gradient(circle at 35% 35%, #36d399,#16a34a 60%, #0d772f);
+      display:flex; align-items:center; justify-content:center; font-weight:700; font-size:12px; user-select:none; cursor:grab; box-shadow:0 6px 16px rgba(0,0,0,.45)}
+    .player:active{cursor:grabbing}
+    .player .tag{position:absolute; top:-20px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,.55); padding:2px 6px; border-radius:8px; font-size:11px; white-space:nowrap}
+    .player.wk{background:radial-gradient(circle at 35% 35%, #93c5fd,#3b82f6 60%, #1d4ed8)}
+    .player.bow{background:radial-gradient(circle at 35% 35%, #fca5a5,#ef4444 60%, #991b1b)}
+
+    .toolbar{display:flex; gap:8px; flex-wrap:wrap}
+    .hint{color:var(--muted); font-size:12px}
+
+    /* lists */
+    ul.clean{list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:6px}
+    .item{display:flex; align-items:center; gap:8px; padding:6px 8px; border:1px dashed #25406a; border-radius:10px}
+    .item .grow{flex:1}
+    .item input{width:100%}
+    .small{font-size:12px; color:var(--muted)}
+
+    .sim-log{background:#0b1323; border:1px solid #1b2a47; padding:10px; border-radius:12px; height:160px; overflow:auto; font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono"}
+
+    .footer{padding:10px 14px; font-size:12px; color:var(--muted); text-align:center}
+    .badge{display:inline-flex; align-items:center; gap:6px; padding:4px 8px; border-radius:999px; border:1px solid #2b3f65}
+    .sep{height:1px; background:#203154; margin:10px 0}
+
+    .link{color:#93c5fd; text-decoration:underline; cursor:pointer}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🏏 Virtual Cricket Strategy Builder</h1>
+    <div class="pill">Build fielding, batting & bowling plans • Simulate vs AI • Share to community</div>
+  </header>
+
+  <div class="wrapper">
+    <!-- Left: Visual Field + Simulation -->
+    <section class="card">
+      <div class="head">
+        <h2>Field Placement (drag players)</h2>
+        <div class="toolbar">
+          <select id="stance">
+            <option value="right">Batter: Right-handed</option>
+            <option value="left">Batter: Left-handed</option>
+          </select>
+          <button class="btn accent" id="resetField">Reset Set Pieces</button>
+          <button class="btn" id="saveStrategy">💾 Save Strategy</button>
+          <button class="btn" id="loadStrategy">📂 Load</button>
+          <button class="btn warn" id="exportJSON">Export JSON</button>
+          <input id="importFile" type="file" accept="application/json" style="display:none"/>
+          <button class="btn" id="importJSON">Import</button>
+        </div>
+      </div>
+      <div class="body">
+        <div class="field-wrap" id="fieldWrap">
+          <!-- SVG Ground -->
+          <svg class="field" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice">
+            <defs>
+              <radialGradient id="g" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#0b6f3a"/>
+                <stop offset="70%" stop-color="#0c5a31"/>
+                <stop offset="100%" stop-color="#094726"/>
+              </radialGradient>
+            </defs>
+            <rect x="0" y="0" width="100" height="100" fill="#0a3b20"/>
+            <circle cx="50" cy="50" r="45" fill="url(#g)" stroke="#2bd681" stroke-width="0.4"/>
+            <!-- Pitch -->
+            <rect x="47.5" y="25" width="5" height="50" rx="2" fill="#c8b68d" stroke="#b59e6d" stroke-width="0.4"/>
+            <line x1="50" y1="25" x2="50" y2="75" stroke="#b59e6d" stroke-width="0.4"/>
+            <!-- Creases -->
+            <line x1="45" y1="35" x2="55" y2="35" stroke="#e5e7eb" stroke-width="0.3"/>
+            <line x1="45" y1="65" x2="55" y2="65" stroke="#e5e7eb" stroke-width="0.3"/>
+            <text x="50" y="12" text-anchor="middle" fill="#cfe6ff" font-size="3">Drag the circles to place your field</text>
+          </svg>
+          <!-- Players dynamically injected here as absolutely positioned divs -->
+        </div>
+        <p class="hint">Tip: Hold and drag each marker. Wicket-keeper (WK) and Bowler (B) are styled differently. Use <span class="link" id="presetAttacking">Attacking</span> / <span class="link" id="presetDefensive">Defensive</span> presets.</p>
+
+        <div class="sep"></div>
+        <div class="grid three">
+          <div class="stack">
+            <label>Field Aggression
+              <input type="range" id="aggr" min="0" max="100" value="55" />
+            </label>
+            <span class="small">Higher = more catching close-in; lower = run-saving on boundary.</span>
+          </div>
+          <div class="stack">
+            <label>Bowling Focus
+              <select id="bowlFocus">
+                <option value="full">Full / Yorker</option>
+                <option value="good" selected>Good Length</option>
+                <option value="short">Short / Bouncer</option>
+                <option value="mixed">Mixed</option>
+              </select>
+            </label>
+            <span class="small">Impacts wicket/run probabilities.</span>
+          </div>
+          <div class="stack">
+            <label>AI Strength
+              <select id="aiLevel">
+                <option value="easy">Easy</option>
+                <option value="normal" selected>Normal</option>
+                <option value="hard">Hard</option>
+              </select>
+            </label>
+            <span class="small">Hard = smarter shots and tighter lines.</span>
+          </div>
+        </div>
+
+        <div class="sep"></div>
+        <div class="grid two">
+          <div class="stack">
+            <button class="btn primary" id="simulateBtn">▶️ Simulate 20 overs</button>
+            <div class="sim-log" id="simLog"></div>
+          </div>
+          <div class="stack">
+            <div class="row">
+              <div class="badge">Predicted Score: <b id="predScore" style="margin-left:6px">—</b></div>
+              <div class="badge">Win Chance: <b id="winChance" style="margin-left:6px">—</b></div>
+            </div>
+            <canvas id="spark" width="520" height="140" aria-label="Worm (runs per over)"></canvas>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Right: Batting/Bowling plans + Community -->
+    <section class="card">
+      <div class="head">
+        <h2>Batting Order & Bowling Plan</h2>
+        <div class="toolbar">
+          <button class="btn" id="seedSample">Seed Sample XI</button>
+        </div>
+      </div>
+      <div class="body">
+        <div class="grid two">
+          <div>
+            <h3>Batting Order</h3>
+            <ul class="clean" id="batList"></ul>
+            <div class="row" style="margin-top:8px">
+              <input id="newBatter" placeholder="Add batter name" />
+              <button class="btn" id="addBatter">Add</button>
+            </div>
+          </div>
+          <div>
+            <h3>Bowling Plan (by over)</h3>
+            <ul class="clean" id="bowlList"></ul>
+            <div class="row" style="margin-top:8px">
+              <input id="newBowler" placeholder="Add bowler name" />
+              <button class="btn" id="addBowler">Add</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="sep"></div>
+        <h3>Community</h3>
+        <p class="small">Share your plan to the local community (this device). Export JSON to share online and let others import it.</p>
+        <div class="grid two">
+          <div class="stack">
+            <input id="strategyName" placeholder="Strategy name (e.g., Powerplay Attack)" />
+            <textarea id="strategyNotes" rows="3" placeholder="Notes: match situation, pitch type, etc."></textarea>
+            <div class="row">
+              <button class="btn" id="shareCommunity">📣 Share to Community</button>
+              <button class="btn" id="clearCommunity">🗑️ Clear Community</button>
+            </div>
+          </div>
+          <div class="stack">
+            <div class="row" style="justify-content:space-between">
+              <span class="small">Community Gallery</span>
+              <button class="btn" id="refreshCommunity">Refresh</button>
+            </div>
+            <ul class="clean" id="community"></ul>
+          </div>
+        </div>
+      </div>
+      <div class="footer">Made for learning & fun. The simulation is a simplified model, not a physics engine.</div>
+    </section>
+  </div>
+
+  <script>
+    // ---------- Utilities ----------
+    const $ = (sel, root=document)=>root.querySelector(sel);
+    const $$ = (sel, root=document)=>Array.from(root.querySelectorAll(sel));
+    const clamp=(v,min,max)=>Math.min(max,Math.max(min,v));
+    const rnd=(a=1,b=0)=>Math.random()*(a-b)+b;
+    const choice=arr=>arr[Math.floor(Math.random()*arr.length)];
+
+    function saveFile(name, data){
+      const blob = new Blob([data], {type:'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href=url; a.download=name; a.click();
+      setTimeout(()=>URL.revokeObjectURL(url),1500);
+    }
+
+    function canvasSpark(ctx, series){
+      const W = ctx.canvas.width, H = ctx.canvas.height;
+      ctx.clearRect(0,0,W,H);
+      ctx.lineWidth=2; ctx.strokeStyle = getComputedStyle(document.body).color;
+      const max=Math.max(1, ...series);
+      const xStep=W/(series.length-1||1), pad=10;
+      ctx.beginPath();
+      series.forEach((v,i)=>{
+        const x=i*xStep; const y=H-pad-(v/max)*(H-2*pad);
+        if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+      });
+      ctx.stroke();
+    }
+
+    // ---------- Data Models ----------
+    const defaultBat = ["Opener A","Opener B","Batter 3","Batter 4","Batter 5","Allrounder 1","Allrounder 2","Keeper","Bowler 1","Bowler 2","Bowler 3"];
+    const defaultBowlers=["Bowler 1","Bowler 2","Bowler 3","Allrounder 1","Allrounder 2"];
+
+    const presets = {
+      attacking: [
+        {x:50,y:72,l:"WK", cls:"wk"},
+        {x:48,y:62,l:"Slip"},{x:43,y:60,l:"Gully"},{x:37,y:55,l:"Point"},{x:32,y:50,l:"Cover"},
+        {x:58,y:62,l:"Slip"},{x:63,y:60,l:"Leg Gully"},{x:68,y:55,l:"Mid Wkt"},{x:72,y:49,l:"Mid On"},
+        {x:28,y:44,l:"Mid Off"},{x:50,y:30,l:"B",cls:"bow"}
+      ],
+      defensive: [
+        {x:50,y:72,l:"WK", cls:"wk"},
+        {x:20,y:35,l:"Deep Cover"},{x:30,y:30,l:"Long Off"},{x:70,y:30,l:"Long On"},{x:80,y:35,l:"Deep Mid Wkt"},
+        {x:15,y:60,l:"Deep Point"},{x:85,y:60,l:"Deep Sq Lg"},{x:25,y:50,l:"Cover"},{x:75,y:50,l:"Mid Wkt"},
+        {x:35,y:65,l:"Third Man"},{x:50,y:30,l:"B",cls:"bow"}
+      ]
+    };
+
+    let state = {
+      stance:'right',
+      field: JSON.parse(localStorage.getItem('field')) || presets.attacking,
+      batting: JSON.parse(localStorage.getItem('batting')) || [...defaultBat],
+      bowling: JSON.parse(localStorage.getItem('bowling')) || Array.from({length:20}, (_,i)=>({over:i+1,bowler: defaultBowlers[i%defaultBowlers.length]})),
+      notes:'', name:''
+    };
+
+    // ---------- Field Rendering & Drag ----------
+    const fieldWrap = $('#fieldWrap');
+
+    function placePlayers(){
+      $$('.player', fieldWrap).forEach(el=>el.remove());
+      state.field.forEach((p, idx)=>{
+        const el = document.createElement('div');
+        el.className = `player ${p.cls||''}`;
+        el.dataset.index=idx;
+        el.innerHTML = `<span>${idx+1}</span><span class="tag">${p.l}</span>`;
+        fieldWrap.appendChild(el);
+        movePlayer(el, p.x, p.y);
+        makeDraggable(el);
+      });
+    }
+
+    function movePlayer(el, xPct, yPct){
+      // keep inside the big circle (r=45% centered at 50,50)
+      const cx=50, cy=50, r=45; let x=xPct, y=yPct;
+      const dx=x-cx, dy=y-cy; const dist=Math.hypot(dx,dy);
+      if(dist>r){ x=cx + dx/dist*r; y=cy + dy/dist*r; }
+      // Convert percent to absolute px within fieldWrap
+      const rect = fieldWrap.getBoundingClientRect();
+      el.style.left = `calc(${x}% - 13px)`;
+      el.style.top  = `calc(${y}% - 13px)`;
+      // persist
+      const i=+el.dataset.index; state.field[i].x=x; state.field[i].y=y;
+    }
+
+    function makeDraggable(el){
+      let startX, startY;
+      const onMove = (e)=>{
+        const rect=fieldWrap.getBoundingClientRect();
+        const px = ( (e.touches? e.touches[0].clientX: e.clientX) - rect.left ) / rect.width * 100;
+        const py = ( (e.touches? e.touches[0].clientY: e.clientY) - rect.top )  / rect.height* 100;
+        movePlayer(el, px, py);
+      };
+      const onUp = ()=>{
+        window.removeEventListener('mousemove',onMove); window.removeEventListener('touchmove',onMove);
+        document.body.style.userSelect='';
+        localStorage.setItem('field', JSON.stringify(state.field));
+      };
+      el.addEventListener('mousedown',e=>{document.body.style.userSelect='none'; window.addEventListener('mousemove',onMove); window.addEventListener('mouseup',onUp);});
+      el.addEventListener('touchstart',e=>{window.addEventListener('touchmove',onMove,{passive:false}); window.addEventListener('touchend',onUp);});
+    }
+
+    // ---------- Lists UI ----------
+    function renderBatting(){
+      const list=$('#batList'); list.innerHTML='';
+      state.batting.forEach((name,i)=>{
+        const li=document.createElement('li'); li.className='item';
+        li.innerHTML=`<span class="badge">${i+1}</span><input value="${name}"/><span class="grow"></span>
+          <button class="btn" data-a="up">↑</button>
+          <button class="btn" data-a="down">↓</button>
+          <button class="btn" data-a="del">✕</button>`;
+        $('input',li).addEventListener('input',e=>{state.batting[i]=e.target.value; persist();});
+        li.addEventListener('click',e=>{
+          const a=e.target.dataset.a; if(!a) return;
+          if(a==='up' && i>0){ [state.batting[i-1],state.batting[i]]=[state.batting[i],state.batting[i-1]]; }
+          if(a==='down' && i<state.batting.length-1){ [state.batting[i+1],state.batting[i]]=[state.batting[i],state.batting[i+1]]; }
+          if(a==='del'){ state.batting.splice(i,1); }
+          persist(); renderBatting();
+        });
+        list.appendChild(li);
+      });
+    }
+
+    function renderBowling(){
+      const list=$('#bowlList'); list.innerHTML='';
+      state.bowling.forEach((o,idx)=>{
+        const li=document.createElement('li'); li.className='item';
+        li.innerHTML=`<span class="badge">Ov ${o.over}</span><input value="${o.bowler}"/><span class="grow"></span>
+          <button class="btn" data-a="del">✕</button>`;
+        $('input',li).addEventListener('input',e=>{state.bowling[idx].bowler=e.target.value; persist();});
+        $('button[data-a="del"]',li).addEventListener('click',()=>{state.bowling.splice(idx,1); renumberOvers(); persist(); renderBowling();});
+        list.appendChild(li);
+      });
+    }
+
+    function renumberOvers(){ state.bowling.forEach((o,i)=>o.over=i+1); }
+    function persist(){ localStorage.setItem('batting', JSON.stringify(state.batting)); localStorage.setItem('bowling', JSON.stringify(state.bowling)); }
+
+    // ---------- Simulation (simple Monte Carlo) ----------
+    function evaluateFieldAggression(){ return +$('#aggr').value; }
+
+    function bowlFocusMod(){
+      const f=$('#bowlFocus').value;
+      if(f==='full') return {dot:+8, runs:-3, wk:+2};
+      if(f==='short') return {dot:+4, runs:+1, wk:+1};
+      if(f==='mixed') return {dot:+2, runs:+0, wk:+1};
+      return {dot:+5, runs:+0, wk:+1}; // good length
+    }
+
+    function aiSkill(){
+      const m=$('#aiLevel').value; return m==='easy'? 0.9 : m==='hard'? 1.15 : 1.0;
+    }
+
+    function runSim(){
+      const aggr = evaluateFieldAggression();
+      const mod = bowlFocusMod();
+      const skill = aiSkill();
+
+      // base probabilities per ball (out of 100)
+      let p = {dot:30, one:28, two:10, three:2, four:14, six:6, wicket:10};
+      // tweak by aggression: more catching close = more wickets & dots, fewer boundaries saved
+      const a = (aggr-50)/50; // -1..+1
+      p.dot += a*6; p.wicket += a*4; p.four -= a*6; p.six -= a*3; p.one -= a*2; p.two -= a*1;
+      // apply bowling focus tweaks
+      p.dot += mod.dot; p.wicket += mod.wk; p.one += mod.runs; p.two += Math.max(0,mod.runs-1);
+      // normalize to 100
+      const sum = Object.values(p).reduce((s,v)=>s+v,0);
+      Object.keys(p).forEach(k=>p[k]=p[k]*100/sum);
+
+      const battingDepth = Math.max(6, state.batting.length);
+      const ai = skill; // 1 hard, <1 easy (we use inverse effect)
+
+      let wkts=0, score=0, overRuns=[]; let curOver=0, balls=0, logs=[];
+      for(let over=1; over<=20; over++){
+        let or=0; const bowler = state.bowling[over-1]?.bowler || `Bowler ${over}`;
+        for(let ball=1; ball<=6; ball++){
+          balls++;
+          // draw an outcome
+          const r = Math.random()*100;
+          let acc=0, outcome='dot';
+          for(const [k,v] of Object.entries(p)) { acc+=v; if(r<=acc){ outcome=k; break; } }
+          if(outcome==='wicket'){
+            wkts++; logs.push(`Ov ${over}.${ball}: WICKET! by ${bowler}`);
+            if(wkts>=10) { logs.push(`All out in ${over}.${ball}.`); overRuns.push(or); break; }
+          } else {
+            const add = outcome==='one'?1: outcome==='two'?2: outcome==='three'?3: outcome==='four'?4: outcome==='six'?6: 0;
+            // AI batting quality: better AI converts some dots to singles/boundaries
+            const conv = rnd();
+            if(conv>0.98*ai) { // rare extra
+              if(add===0) { score+=1; or+=1; logs.push(`Ov ${over}.${ball}: Rotates strike`); }
+              else if(add<=2 && rnd()>0.7) { score+=add+2; or+=add+2; logs.push(`Ov ${over}.${ball}: Finds gap (+2)`); }
+              else { score+=add; or+=add; }
+            } else { score+=add; or+=add; }
+          }
+        }
+        overRuns.push(or); if(wkts>=10) break;
+        logs.push(`End Ov ${over}: ${or} runs, Total ${score}/${wkts}`);
+      }
+      return {score, wkts, overRuns, logs};
+    }
+
+    function updateSpark(series){
+      const ctx = $('#spark').getContext('2d'); canvasSpark(ctx, series);
+    }
+
+    // ---------- Community ----------
+    const COMMUNITY_KEY = 'community_strategies_v1';
+    function getCommunity(){ return JSON.parse(localStorage.getItem(COMMUNITY_KEY)||'[]'); }
+    function setCommunity(arr){ localStorage.setItem(COMMUNITY_KEY, JSON.stringify(arr)); }
+    function refreshCommunity(){
+      const list = $('#community'); list.innerHTML='';
+      const items = getCommunity();
+      items.forEach((s,idx)=>{
+        const li=document.createElement('li'); li.className='item';
+        li.innerHTML=`<div class="grow"><b>${s.name||'Untitled'}</b><div class="small">${s.notes||''}</div></div>
+          <button class="btn" data-a="load">Load</button>
+          <button class="btn" data-a="export">Export</button>
+          <button class="btn" data-a="del">✕</button>`;
+        $('button[data-a="load"]',li).addEventListener('click',()=>{ loadFromObject(s); });
+        $('button[data-a="export"]',li).addEventListener('click',()=>{ saveFile(`${(s.name||'strategy').replace(/\s+/g,'_')}.json`, JSON.stringify(s,null,2)); });
+        $('button[data-a="del"]',li).addEventListener('click',()=>{ const a=getCommunity(); a.splice(idx,1); setCommunity(a); refreshCommunity(); });
+        list.appendChild(li);
+      });
+      if(items.length===0){
+        const li=document.createElement('li'); li.className='item'; li.innerHTML='<span class="small">No community strategies yet. Share yours!</span>';
+        list.appendChild(li);
+      }
+    }
+
+    function captureStrategy(){
+      return {
+        name: $('#strategyName').value || 'My Strategy',
+        notes: $('#strategyNotes').value || '',
+        stance: state.stance,
+        field: state.field,
+        batting: state.batting,
+        bowling: state.bowling,
+        aggr: +$('#aggr').value,
+        focus: $('#bowlFocus').value,
+        ai: $('#aiLevel').value,
+        savedAt: new Date().toISOString()
+      };
+    }
+
+    function loadFromObject(obj){
+      state.stance = obj.stance||'right'; $('#stance').value=state.stance;
+      state.field = obj.field||state.field; state.batting = obj.batting||state.batting; state.bowling = obj.bowling||state.bowling;
+      $('#aggr').value = obj.aggr ?? $('#aggr').value; $('#bowlFocus').value=obj.focus||$('#bowlFocus').value; $('#aiLevel').value=obj.ai||$('#aiLevel').value;
+      placePlayers(); renderBatting(); renderBowling(); updateSpark(obj.overRuns||[]);
+      $('#predScore').textContent = obj.predScore||'—'; $('#winChance').textContent = obj.winChance||'—';
+    }
+
+    // ---------- Controls ----------
+    $('#resetField').addEventListener('click', ()=>{ state.field = JSON.parse(JSON.stringify(presets.attacking)); placePlayers(); localStorage.setItem('field', JSON.stringify(state.field)); });
+    $('#stance').addEventListener('change', e=>{ state.stance=e.target.value; });
+
+    $('#presetAttacking').addEventListener('click',()=>{ state.field = JSON.parse(JSON.stringify(presets.attacking)); placePlayers(); });
+    $('#presetDefensive').addEventListener('click',()=>{ state.field = JSON.parse(JSON.stringify(presets.defensive)); placePlayers(); });
+
+    $('#seedSample').addEventListener('click',()=>{
+      state.batting=["R. Sharma","S. Gill","V. Kohli","S. Iyer","KL Rahul","H. Pandya","R. Jadeja","I. Kishan","M. Shami","J. Bumrah","M. Siraj"];
+      state.bowling=Array.from({length:20},(_,i)=>({over:i+1,bowler: choice(["Bumrah","Shami","Siraj","Jadeja","Pandya"]) }));
+      persist(); renderBatting(); renderBowling();
+    });
+
+    $('#addBatter').addEventListener('click',()=>{ const v=$('#newBatter').value.trim(); if(!v) return; state.batting.push(v); $('#newBatter').value=''; persist(); renderBatting(); });
+    $('#addBowler').addEventListener('click',()=>{ const v=$('#newBowler').value.trim(); if(!v) return; state.bowling.push({over: state.bowling.length+1, bowler:v}); $('#newBowler').value=''; persist(); renderBowling(); });
+
+    $('#simulateBtn').addEventListener('click',()=>{
+      const res = runSim();
+      $('#predScore').textContent = `${res.score}/${res.wkts}`;
+      // naive win chance vs an AI opponent target (par 155 adj by ai)
+      const par = 155 * aiSkill();
+      const win = clamp(50 + (res.score - par)*0.35, 1, 99);
+      $('#winChance').textContent = `${win.toFixed(0)}%`;
+      const log=$('#simLog'); log.innerHTML = res.logs.map(x=>`<div>${x}</div>`).join(''); log.scrollTop=log.scrollHeight;
+      updateSpark(res.overRuns);
+      // attach to current strategy snapshot for export
+      const cur = captureStrategy(); cur.predScore=`${res.score}/${res.wkts}`; cur.winChance=`${win.toFixed(0)}%`; cur.overRuns=res.overRuns;
+      sessionStorage.setItem('lastRun', JSON.stringify(cur));
+    });
+
+    $('#shareCommunity').addEventListener('click',()=>{
+      const s = captureStrategy();
+      // include last simulation if exists
+      try{ const last = JSON.parse(sessionStorage.getItem('lastRun')||'null'); if(last){ s.predScore=last.predScore; s.winChance=last.winChance; s.overRuns=last.overRuns; } }catch{}
+      const arr = getCommunity(); arr.unshift(s); setCommunity(arr.slice(0,50)); refreshCommunity();
+    });
+    $('#clearCommunity').addEventListener('click',()=>{ if(confirm('Clear all community items on this device?')){ setCommunity([]); refreshCommunity(); } });
+    $('#refreshCommunity').addEventListener('click',refreshCommunity);
+
+    $('#saveStrategy').addEventListener('click',()=>{
+      const cur=captureStrategy(); localStorage.setItem('saved_strategy', JSON.stringify(cur)); alert('Saved locally. Use Load to restore.');
+    });
+    $('#loadStrategy').addEventListener('click',()=>{
+      const data=localStorage.getItem('saved_strategy'); if(!data) return alert('No saved strategy found.');
+      loadFromObject(JSON.parse(data));
+    });
+
+    $('#exportJSON').addEventListener('click',()=>{
+      let cur = captureStrategy();
+      try{ const last = JSON.parse(sessionStorage.getItem('lastRun')||'null'); if(last){ cur.predScore=last.predScore; cur.winChance=last.winChance; cur.overRuns=last.overRuns; } }catch{}
+      saveFile(`${(cur.name||'strategy').replace(/\s+/g,'_')}.json`, JSON.stringify(cur,null,2));
+    });
+    $('#importJSON').addEventListener('click',()=>$('#importFile').click());
+    $('#importFile').addEventListener('change', e=>{
+      const f=e.target.files[0]; if(!f) return; const reader=new FileReader();
+      reader.onload=()=>{ try{ const obj=JSON.parse(reader.result); loadFromObject(obj); $('#strategyName').value=obj.name||''; $('#strategyNotes').value=obj.notes||''; } catch{ alert('Invalid JSON'); } };
+      reader.readAsText(f);
+      e.target.value='';
+    });
+
+    // ---------- Init ----------
+    placePlayers(); renderBatting(); renderBowling(); refreshCommunity();
+    updateSpark([]);
+  </script>
+</body>
+</html>
